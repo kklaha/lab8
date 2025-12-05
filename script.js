@@ -1,18 +1,21 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const popupOverlay = document.getElementById('popupOverlay');
     const closeBtn = document.getElementById('closeBtn');
     const openBtn = document.querySelector('.btn-open-form');
     const contactForm = document.getElementById('contactForm');
-    const messageDiv = document.getElementById('formMessage');
+    const messageDiv = document.getElementById('formMessage'); 
     function loadFormData() {
         const saved = JSON.parse(localStorage.getItem('contactForm')) || {};
         Object.keys(saved).forEach(key => {
             const el = document.getElementById(key);
-            if (el) el.value = saved[key];
+            if (el) {
+                if (el.type === 'checkbox') {
+                    el.checked = saved[key];
+                } else {
+                    el.value = saved[key];
+                }
+            }
         });
-        if (saved.privacyAgreement !== undefined) {
-            document.getElementById('privacyAgreement').checked = saved.privacyAgreement;
-        }
     }
     function saveFormData() {
         const data = {
@@ -29,18 +32,18 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.removeItem('contactForm');
         contactForm.reset();
     }
-
     function openPopup() {
         popupOverlay.style.display = 'flex';
         history.pushState({ formOpen: true }, '', '#form');
         loadFormData();
     }
-
     function closePopup() {
         popupOverlay.style.display = 'none';
-        history.back(); 
+        if (window.location.hash === '#form') {
+            history.back();
+        }
         clearFormData();
-        showMessage('', false);
+        messageDiv.style.display = 'none'; 
     }
     function showMessage(text, isSuccess) {
         messageDiv.textContent = text;
@@ -50,46 +53,44 @@ document.addEventListener('DOMContentLoaded', function() {
             messageDiv.style.display = 'none';
         }, 5000);
     }
-    contactForm.addEventListener('submit', async function(e) {
+    contactForm.addEventListener('submit', async function (e) {
         e.preventDefault();
-
         const formData = new FormData(contactForm);
-        const data = Object.fromEntries(formData.entries());
-
         try {
+            console.log('Отправляю данные:', Object.fromEntries(formData.entries()));
+
             const response = await fetch('https://formcarry.com/s/da7g4RAoKGe', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
+                body: formData 
             });
-
             if (response.ok) {
-                showMessage('✅ Сообщение успешно отправлено!', true);
+                showMessage('✅ Ваше сообщение отправлено! Спасибо!', true);
                 clearFormData();
                 setTimeout(closePopup, 2000);
             } else {
-                throw new Error('Ошибка сервера');
+                const errorText = await response.text();
+                console.error('Ошибка сервера:', response.status, errorText);
+                showMessage(`❌ Ошибка: ${response.status}`, false);
             }
         } catch (err) {
-            showMessage('❌ Ошибка отправки: ' + err.message, false);
+            console.error('Ошибка сети:', err);
+            showMessage(`❌ Нет соединения: ${err.message}`, false);
         }
     });
     openBtn.addEventListener('click', openPopup);
     closeBtn.addEventListener('click', closePopup);
-    popupOverlay.addEventListener('click', function(e) {
+    popupOverlay.addEventListener('click', function (e) {
         if (e.target === popupOverlay) {
             closePopup();
         }
     });
-    document.addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && popupOverlay.style.display === 'flex') {
             closePopup();
         }
     });
-    window.addEventListener('popstate', function(e) {
-        if (!e.state || !e.state.formOpen) {
+    window.addEventListener('popstate', function (e) {
+        if (popupOverlay.style.display === 'flex') {
             closePopup();
         }
     });
@@ -97,4 +98,5 @@ document.addEventListener('DOMContentLoaded', function() {
     inputs.forEach(input => {
         input.addEventListener('input', saveFormData);
     });
+    document.getElementById('privacyAgreement').addEventListener('change', saveFormData);
 });
