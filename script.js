@@ -4,15 +4,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const openBtn = document.querySelector('.btn-open-form');
     const contactForm = document.getElementById('contactForm');
     const messageDiv = document.getElementById('formMessage'); 
+
     function loadFormData() {
         const saved = JSON.parse(localStorage.getItem('contactForm')) || {};
         Object.keys(saved).forEach(key => {
             const el = document.getElementById(key);
             if (el) {
                 if (el.type === 'checkbox') {
-                    el.checked = saved[key];
+                    el.checked = !!saved[key];
                 } else {
-                    el.value = saved[key];
+                    el.value = saved[key] || '';
                 }
             }
         });
@@ -43,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
             history.back();
         }
         clearFormData();
-        messageDiv.style.display = 'none'; 
+        messageDiv.style.display = 'none';
     }
     function showMessage(text, isSuccess) {
         messageDiv.textContent = text;
@@ -53,41 +54,72 @@ document.addEventListener('DOMContentLoaded', function () {
             messageDiv.style.display = 'none';
         }, 5000);
     }
-   contactForm.addEventListener('submit', async function (e) {
-    e.preventDefault();
-
-    const data = {
-        fullName: document.getElementById('fullName').value,
-        email: document.getElementById('email').value,
-        phone: document.getElementById('phone').value,
-        organization: document.getElementById('organization').value,
-        message: document.getElementById('message').value,
-        privacyAgreement: document.getElementById('privacyAgreement').checked
-    };
-
-    try {
-        console.log('Отправляю данные:', data);
-
-        const response = await fetch('https://formcarry.com/s/da7g4RAoKGe', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json' 
-            },
-            body: JSON.stringify(data)
-        });
-
-        if (response.ok) {
-            showMessage('✅ Ваше сообщение отправлено! Спасибо!', true);
-            clearFormData();
-            setTimeout(closePopup, 2000);
-        } else {
-            const errorText = await response.text();
-            console.error('Ошибка сервера:', response.status, errorText);
-            showMessage(`❌ Ошибка: ${response.status}`, false);
+    contactForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const data = {
+            fullName: document.getElementById('fullName').value.trim(),
+            email: document.getElementById('email').value.trim(),
+            phone: document.getElementById('phone').value.trim(),
+            organization: document.getElementById('organization').value.trim(),
+            message: document.getElementById('message').value.trim(),
+            privacyAgreement: document.getElementById('privacyAgreement').checked
+        };
+        if (!data.fullName || !data.email || !data.message) {
+            showMessage('❌ Заполните обязательные поля', false);
+            return;
         }
-    } catch (err) {
-        console.error('Ошибка сети:', err);
-        showMessage(`❌ Нет соединения: ${err.message}`, false);
-    }
+
+        if (!/^\S+@\S+\.\S+$/.test(data.email)) {
+            showMessage('❌ Неверный формат email', false);
+            return;
+        }
+
+        try {
+            console.log('Отправляю данные:', data);
+
+            const response = await fetch('https://formcarry.com/s/da7g4RAoKGe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                showMessage('✅ Ваше сообщение успешно отправлено!', true);
+                clearFormData();
+                setTimeout(closePopup, 2000);
+            } else {
+                const errorText = await response.text();
+                console.error('Ошибка сервера:', response.status, errorText);
+                showMessage(`❌ Ошибка: ${response.status}`, false);
+            }
+        } catch (err) {
+            console.error('Ошибка сети:', err);
+            showMessage(`❌ Нет соединения: ${err.message}`, false);
+        }
+    });
+    openBtn.addEventListener('click', openPopup);
+    closeBtn.addEventListener('click', closePopup);
+    popupOverlay.addEventListener('click', function (e) {
+        if (e.target === popupOverlay) {
+            closePopup();
+        }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && popupOverlay.style.display === 'flex') {
+            closePopup();
+        }
+    });
+    window.addEventListener('popstate', function (e) {
+        if (popupOverlay.style.display === 'flex') {
+            closePopup();
+        }
+    });
+    const inputs = contactForm.querySelectorAll('input, textarea, #privacyAgreement');
+    inputs.forEach(input => {
+        input.addEventListener('input', saveFormData);
+        input.addEventListener('change', saveFormData); 
+    });
 });
